@@ -1,0 +1,121 @@
+---
+title: "Mental rotation experiment 2019"
+author: "Sigrid Agersnap"
+date: "23 August 2017 (Revised 2019)"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+```{r setup}
+knitr::opts_knit$set(root.dir = "/Users/sigridnielsen/R studio data/Intro-to-cogsci/2019-09-27 MR/")
+```
+
+##Mental rotation data
+```{r}
+#Loading packages:
+library(lmerTest)
+library(ggplot2)
+#library(dplyr)
+library(tidyverse)
+#library(pastecs)
+library(data.table)
+library(knitr)
+
+#Reading multiple data-files
+#setwd("C:/Users/Ejer/Desktop/Instructor/Mental Rotation/mental_rotation_exp_from_psychopy/data/")
+#files = list.files(pattern = "*.csv", full.names = T)
+#temp=lapply(files,fread,sep=",")
+#mentalrot=rbindlist(temp, fill = T)
+
+#Remove NAs
+#mentalrot<-subset(mentalrot,mentalrot$Response.rt!="NA")
+
+#Remove outliers
+#mentalrot<-subset(mentalrot,mentalrot$Response.rt<mean(mentalrot$Response.rt)+3*sd(mentalrot$Response.rt)) #removing cases very rt is more than 3 sd away from the mean - common proceduce given definition of normal dis.)
+#mentalrot <- subset(mentalrot, select = -c(V19,date, session, frameRate,key_resp_4.keys, key_resp_4.rt)) #dropping some useless coloumns
+
+#write.csv(mentalrot,"MentalRotationData.csv")
+
+```
+
+##Plot histogram of data - checking the assumption of normality
+```{r}
+
+#Loading data. Remember to set working directory
+mentalrot = read.csv("MentalRotationData.csv", header = T)
+mentalrot = subset(mentalrot, select = -c(X))
+
+#histogram
+hist(mentalrot$Response.rt,breaks=10)
+
+#Q-Q-plot
+qqnorm(mentalrot$Response.rt)
+```
+####The data is not normally distributed
+
+##Try with a log-transform
+```{r}
+mentalrot$logrt=log(mentalrot$Response.rt)
+
+#histogram
+hist(mentalrot$logrt,breaks=10)
+
+#Q-Q-plot
+qqnorm(mentalrot$logrt)
+
+```
+
+
+##Try a linear model on log-transformed data
+```{r}
+
+mentalrot_model<-lm(mentalrot$logrt~mentalrot$angle)
+summary(mentalrot_model)
+
+#We have repeated measure, so we are violating assumptions of independence. Run a mixed effects model
+mentalrot_rp=lmerTest::lmer(logrt~angle+(1|participant),mentalrot)
+summary(mentalrot_rp)
+
+library(MuMIn)
+rsquare = r.squaredGLMM(mentalrot_rp)
+
+rsquare
+#Conditional R-squared is what we want.
+
+```
+
+##Try using abs(angle-180)
+```{r}
+mentalrot$angle_new<-abs(abs(180-mentalrot$angle)-180) #changes variable - angle of rotation is now between from 0-180 degrees, regardless of direction.
+mentalrot_model<-lm(mentalrot$logrt~mentalrot$angle_new)
+summary(mentalrot_model)
+
+#Repeated measures model with angle_new variable
+newMentalrot_rp=lmerTest::lmer(logrt~angle_new+(1|participant),mentalrot)
+summary(newMentalrot_rp)
+rsqaure_new = r.squaredGLMM(newMentalrot_rp)
+rsqaure_new
+
+```
+
+
+##Plotting of data
+```{r}
+mentalrot$angle_f<-as.factor(mentalrot$angle_new)
+
+ggplot(mentalrot, aes(x = angle_f , y = logrt)) +
+  geom_point() + labs(x = "angle of rotation", y = "log(response time)") +
+  geom_smooth(method='lm',aes( group = 1 )) 
+
+
+```
+
+```{r}
+library(ggplot2)
+mentalrot$angle_f<-as.factor(mentalrot$angle_new)
+
+p <- ggplot(mentalrot, aes(x = angle_f , y = logrt))
+p+ geom_boxplot()+ labs(x = "angle of rotation", y = "log(response time)")
+```
